@@ -63,6 +63,18 @@
   },
   "entity": {
     "binary_sensor": {
+      "ca_iced_mode": {
+        "name": "正在制冰"
+      },
+      "ca_ice_mouth_power": {
+        "name": "出冰口状态"
+      },
+      "ca_ice_water_status_flag": {
+        "name": "制冰水盒状态位"
+      },
+      "ca_ice_bin_status_flag": {
+        "name": "冰盒状态位"
+      },
       "door_auto_open": {
         "name": "自动开门（上一程序）"
       },
@@ -3843,6 +3855,9 @@
       }
     },
     "switch": {
+      "ca_ice_maker_power": {
+        "name": "制冰机电源"
+      },
       "db_power": {
         "name": "洗衣机电源"
       },

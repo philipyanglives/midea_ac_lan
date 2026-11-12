@@ -37,6 +37,7 @@ from midealan.device import DeviceType, MideaDevice, ProtocolVersion
 from midealan.devices import device_selector
 from midealan.discover import discover
 
+from .ca_ice import install_ca_ice_adapter
 from .const import (
     ALL_PLATFORM,
     CONF_ACCOUNT,
@@ -55,6 +56,8 @@ from .const import (
     supports_device,
 )
 from .midea_devices import MIDEA_DEVICES
+
+install_ca_ice_adapter()
 
 _LOGGER = logging.getLogger(__name__)
 

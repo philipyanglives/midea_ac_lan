@@ -63,6 +63,18 @@
   },
   "entity": {
     "binary_sensor": {
+      "ca_iced_mode": {
+        "name": "Ice Making"
+      },
+      "ca_ice_mouth_power": {
+        "name": "Ice Dispenser Status"
+      },
+      "ca_ice_water_status_flag": {
+        "name": "Ice Maker Water Status Flag"
+      },
+      "ca_ice_bin_status_flag": {
+        "name": "Ice Bin Status Flag"
+      },
       "door_auto_open": {
         "name": "Last Program Door Auto-Open"
       },
@@ -4034,6 +4046,9 @@
       }
     },
     "switch": {
+      "ca_ice_maker_power": {
+        "name": "Ice Maker Power"
+      },
       "db_power": {
         "name": "Washer power"
       },
