@@ -4,12 +4,14 @@ from unittest.mock import patch
 
 import pytest
 from midea_ac_lan.ca_ice import MideaCAIceDevice, build_ice_power_body
+from midea_ac_lan.const import supports_device
+from midea_ac_lan.midea_devices import MIDEA_DEVICES
 from midealan.const import ProtocolVersion
 from midealan.message import MessageType
 
 TEST_AUTH = "AA"
 EXPECTED_BODY_LENGTH = 40
-EXPECTED_MODE = 0x24
+EXPECTED_MODE = 0x9C
 EXPECTED_OTHER = 0x10
 EXPECTED_ICE_ON = 0x84
 
@@ -34,14 +36,14 @@ def _status() -> bytes:
     """Make a general CA status with ice and unrelated control bits set."""
     body = bytearray(32)
     body[0] = 0
-    body[1] = 0x24
+    body[1] = 0x9C
     body[2] = 0x35
     body[3] = 5
     body[4] = 50
     body[7] = 0x30
     body[8] = 0x04
-    body[14] = 0x0C
-    body[15] = 0x08
+    body[14] = 0x0F
+    body[15] = 0x28
     body[17] = 110
     body[18] = 90
     body[19] = 100
@@ -59,6 +61,13 @@ def test_status_bits_are_boolean() -> None:
     assert changes["freezing_all_ice_status"] is True
     assert changes["freezing_ice_machine_water_status"] is True
     assert changes["ice_mouth_power"] is True
+    assert changes["storage_iceHome_door_state"] is True
+    assert changes["freezing_motor_deicing_status"] is True
+    assert changes["freezing_motor_reset_status"] is True
+    assert changes["smart_mode"] is True
+    assert changes["energy_saving_mode"] is True
+    assert changes["holiday_mode"] is True
+    assert changes["acme_freezing_mode"] is True
 
 
 def test_control_changes_only_power_bit() -> None:
@@ -105,9 +114,27 @@ def test_other_model_keeps_upstream_behavior() -> None:
     """An unrelated CA refrigerator never receives ice attributes or writes."""
     device = _device(model="other")
     assert "iced_mode" not in device.attributes
+    assert "storage_iceHome_door_state" not in device.attributes
     with patch.object(device, "build_send") as send:
         device.set_attribute("freezing_ice_machine_power", True)
         send.assert_not_called()
+
+
+def test_new_status_entities_are_limited_to_310a1394() -> None:
+    """Unknown CA models cannot create the extra flag sensors."""
+    entities = MIDEA_DEVICES[0xCA]["entities"]
+    for key in (
+        "storage_iceHome_door_state",
+        "freezing_motor_deicing_status",
+        "freezing_motor_reset_status",
+        "smart_mode",
+        "energy_saving_mode",
+        "holiday_mode",
+        "acme_freezing_mode",
+    ):
+        assert supports_device("310A1394", 56, entities[key])
+        assert not supports_device("other", 56, entities[key])
+        assert not supports_device("310A1394", 21, entities[key])
 
 
 def test_short_status_is_rejected() -> None:

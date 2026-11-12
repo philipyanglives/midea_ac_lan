@@ -210,9 +210,18 @@ Known settings:
 | switch.{DEVICEID}\_wind_ud_angle               | select        | Airflow Vertical                 |
 | switch.{DEVICEID}\_rate_select                 | select        | Power Rate Limit                 |
 | switch.{DEVICEID}\_fan_speed                   | number        | Fan Speed Percent                |
+| binary_sensor.{DEVICEID}\_defrosting           | binary_sensor | Defrosting (when reported)       |
+| number.{DEVICEID}\_power_on_timer              | number        | Power-on Countdown               |
+| number.{DEVICEID}\_power_off_timer             | number        | Power-off Countdown              |
 
 Service diagnostic entities are optional. Devices that do not return the
 corresponding Midea group data may leave these entities in an unknown state.
+
+The countdown controls are optional. Enter a duration in minutes (`0` cancels
+the timer); the displayed number is the remaining time reported by the device.
+They remain unavailable until a status report provides a value. The supported
+duration is 0–1919 minutes, but individual AC models may not implement timers.
+Confirm timer support in the vendor app before using these controls.
 
 ## Built-in fresh air system
 

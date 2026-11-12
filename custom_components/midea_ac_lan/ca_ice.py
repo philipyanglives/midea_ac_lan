@@ -20,12 +20,19 @@ CONTROL_BODY_LENGTH = 40
 MIN_GENERAL_STATUS_LENGTH = 25
 ICE_POWER_OFFSET = 8
 ICE_POWER_MASK = 0x80
-ICE_FLAGS = (
+STATUS_FLAGS = (
     "iced_mode",
     "freezing_ice_machine_power",
     "ice_mouth_power",
     "freezing_ice_machine_water_status",
     "freezing_all_ice_status",
+    "storage_iceHome_door_state",
+    "freezing_motor_deicing_status",
+    "freezing_motor_reset_status",
+    "smart_mode",
+    "energy_saving_mode",
+    "holiday_mode",
+    "acme_freezing_mode",
 )
 CONTROL_STATUS_OFFSETS = (
     1,
@@ -105,7 +112,7 @@ class MideaCAIceDevice(ca.MideaCADevice):
         self._last_general_body: bytearray | None = None
         self._last_general_status_at: float | None = None
         if self.model == MODEL and self.subtype == SUBTYPE:
-            for key in ICE_FLAGS:
+            for key in STATUS_FLAGS:
                 self._attributes[key] = None
 
     def process_message(self, msg: bytes) -> dict[str, Any]:
@@ -124,7 +131,7 @@ class MideaCAIceDevice(ca.MideaCADevice):
         if hasattr(message, "freezing_ice_machine_power"):
             self._last_general_body = bytearray(message.body)
             self._last_general_status_at = time.monotonic()
-            for key in ICE_FLAGS:
+            for key in STATUS_FLAGS:
                 value = bool(getattr(message, key))
                 self._attributes[key] = value
                 new_status[key] = value
