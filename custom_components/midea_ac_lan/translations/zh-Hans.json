@@ -70,7 +70,10 @@
         "name": "出冰口电源位"
       },
       "ca_ice_water_status_flag": {
-        "name": "制冰水盒状态位"
+        "name": "制冰水状态原始位"
+      },
+      "ca_ice_water_shortage": {
+        "name": "制冰机缺水"
       },
       "ca_ice_bin_status_flag": {
         "name": "冰盒状态位"

@@ -6110,10 +6110,21 @@ MIDEA_DEVICES: dict[int, dict[str, dict[str, Any] | str]] = {
             "freezing_ice_machine_water_status": {
                 "type": Platform.BINARY_SENSOR,
                 "translation_key": "ca_ice_water_status_flag",
-                "name": "Ice Maker Water Status Flag",
+                "name": "Ice Maker Water Status Raw Flag",
                 "icon": "mdi:water",
                 "models": ["310A1394"],
                 "subtypes": [56],
+                "default": True,
+            },
+            "freezer_icemaker_water_shortage": {
+                "type": Platform.BINARY_SENSOR,
+                "translation_key": "ca_ice_water_shortage",
+                "name": "Ice Maker Water Shortage",
+                "icon": "mdi:water-alert",
+                "device_class": BinarySensorDeviceClass.PROBLEM,
+                "models": ["310A1394"],
+                "subtypes": [56],
+                "available_value_attribute": "freezer_icemaker_water_shortage",
                 "default": True,
             },
             "freezing_all_ice_status": {

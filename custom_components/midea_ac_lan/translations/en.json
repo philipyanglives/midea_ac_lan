@@ -70,7 +70,10 @@
         "name": "Ice Dispenser Power Flag"
       },
       "ca_ice_water_status_flag": {
-        "name": "Ice Maker Water Status Flag"
+        "name": "Ice Maker Water Status Raw Flag"
+      },
+      "ca_ice_water_shortage": {
+        "name": "Ice Maker Water Shortage"
       },
       "ca_ice_bin_status_flag": {
         "name": "Ice Bin Status Flag"

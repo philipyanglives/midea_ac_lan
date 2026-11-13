@@ -24,6 +24,8 @@ ICE_POWER_OFFSET = 8
 ICE_POWER_MASK = 0x80
 QUICK_ICE_OFFSET = 44
 QUICK_ICE_MASK = 0x20
+ICE_WATER_STATUS_OFFSET = 14
+ICE_WATER_SHORTAGE_MASK = 0x20
 ICE_MODES = ("off", "normal", "rapid")
 STATUS_FLAGS = (
     "iced_mode",
@@ -145,6 +147,7 @@ class MideaCAIceDevice(ca.MideaCADevice):
             for key in STATUS_FLAGS:
                 self._attributes[key] = None
             self._attributes["ice_making_mode"] = None
+            self._attributes["freezer_icemaker_water_shortage"] = None
 
     def process_message(self, msg: bytes) -> dict[str, Any]:
         """Normalize the parser's ice bit masks to booleans.
@@ -191,6 +194,18 @@ class MideaCAIceDevice(ca.MideaCADevice):
                     continue
                 self._attributes[key] = value
                 new_status[key] = value
+            if (
+                message.message_type == MessageType.query
+                and len(message.body) > ICE_WATER_STATUS_OFFSET
+                and message.body[0] == ListTypes.X00
+            ):
+                # The raw water status at bit 2 means valid/invalid. The
+                # separate bit 5 is the actual ice maker shortage signal.
+                shortage = bool(
+                    message.body[ICE_WATER_STATUS_OFFSET] & ICE_WATER_SHORTAGE_MASK
+                )
+                self._attributes["freezer_icemaker_water_shortage"] = shortage
+                new_status["freezer_icemaker_water_shortage"] = shortage
             if (
                 message.message_type in (MessageType.query, MessageType.set)
                 and len(message.body) >= MODE_CONTROL_BODY_LENGTH

@@ -78,6 +78,34 @@ def test_status_bits_are_boolean() -> None:
     assert changes["holiday_mode"] is True
     assert changes["acme_freezing_mode"] is True
     assert changes["ice_making_mode"] == "off"
+    assert changes["freezer_icemaker_water_shortage"] is False
+
+
+def test_ice_water_shortage_is_distinct_from_raw_water_status() -> None:
+    """The shortage alert is bit 5, not the older valid/invalid bit 2."""
+    device = _device()
+    shortage = bytearray(_status(ice_power=True))
+    shortage[10 + 14] = 0x20
+    changes = device.process_message(bytes(shortage))
+    assert changes["freezer_icemaker_water_shortage"] is True
+    assert changes["freezing_ice_machine_water_status"] is False
+
+    normal = bytearray(_status(ice_power=True))
+    normal[10 + 14] = 0x04
+    changes = device.process_message(bytes(normal))
+    assert changes["freezer_icemaker_water_shortage"] is False
+    assert changes["freezing_ice_machine_water_status"] is True
+
+
+def test_ice_water_shortage_ignores_x02_notification() -> None:
+    """An X02 notification must not overwrite the authoritative X00 alert."""
+    device = _device()
+    shortage = bytearray(_status(ice_power=True))
+    shortage[10 + 14] = 0x20
+    device.process_message(bytes(shortage))
+    notification = device.process_message(_status(MessageType.notify1))
+    assert "freezer_icemaker_water_shortage" not in notification
+    assert device.get_attribute("freezer_icemaker_water_shortage") is True
 
 
 def test_ice_mode_is_read_from_extended_status() -> None:
@@ -215,6 +243,7 @@ def test_other_model_keeps_upstream_behavior() -> None:
     assert "iced_mode" not in device.attributes
     assert "storage_iceHome_door_state" not in device.attributes
     assert "ice_making_mode" not in device.attributes
+    assert "freezer_icemaker_water_shortage" not in device.attributes
     with patch.object(device, "build_send") as send:
         device.set_attribute("freezing_ice_machine_power", True)
         send.assert_not_called()
@@ -225,6 +254,7 @@ def test_new_status_entities_are_limited_to_310a1394() -> None:
     entities = MIDEA_DEVICES[0xCA]["entities"]
     for key in (
         "ice_making_mode",
+        "freezer_icemaker_water_shortage",
         "storage_iceHome_door_state",
         "freezing_motor_deicing_status",
         "freezing_motor_reset_status",
