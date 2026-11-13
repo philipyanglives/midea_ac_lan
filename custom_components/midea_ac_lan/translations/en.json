@@ -64,10 +64,10 @@
   "entity": {
     "binary_sensor": {
       "ca_iced_mode": {
-        "name": "Ice Making"
+        "name": "Ice Making Mode Flag"
       },
       "ca_ice_mouth_power": {
-        "name": "Ice Dispenser Status"
+        "name": "Ice Dispenser Power Flag"
       },
       "ca_ice_water_status_flag": {
         "name": "Ice Maker Water Status Flag"

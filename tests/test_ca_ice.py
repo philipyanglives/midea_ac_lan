@@ -32,23 +32,26 @@ def _device(model: str = "310A1394") -> MideaCAIceDevice:
     )
 
 
-def _status() -> bytes:
+def _status(
+    message_type: MessageType = MessageType.query,
+    ice_power: bool = False,
+) -> bytes:
     """Make a general CA status with ice and unrelated control bits set."""
     body = bytearray(32)
-    body[0] = 0
+    body[0] = 2 if message_type == MessageType.notify1 else 0
     body[1] = 0x9C
     body[2] = 0x35
     body[3] = 5
     body[4] = 50
     body[7] = 0x30
-    body[8] = 0x04
+    body[8] = 0x84 if ice_power else 0x04
     body[14] = 0x0F
     body[15] = 0x28
     body[17] = 110
     body[18] = 90
     body[19] = 100
     body[20] = 120
-    header = bytearray([0xAA] + [0] * 7 + [ProtocolVersion.V1, MessageType.query])
+    header = bytearray([0xAA] + [0] * 7 + [ProtocolVersion.V1, message_type])
     return bytes(header + body + bytearray([0]))
 
 
@@ -83,6 +86,58 @@ def test_control_changes_only_power_bit() -> None:
     assert command.body[7] == EXPECTED_OTHER
     assert command.body[8] == EXPECTED_ICE_ON
     assert device.get_attribute("freezing_ice_machine_power") is False
+
+
+def test_notification_does_not_replace_control_ready_status() -> None:
+    """An X02 notification may update flags but cannot seed an X00 write."""
+    device = _device()
+    device.process_message(_status())
+    original_body = device._last_general_body
+    device.process_message(_status(MessageType.notify1))
+    assert device._last_general_body == original_body
+    with patch.object(device, "build_send") as send:
+        device.set_attribute("freezing_ice_machine_power", True)
+    assert send.call_args.args[0].body[0] == 0
+
+
+def test_notification_without_query_cannot_control() -> None:
+    """Wait for an X00 status rather than using an X02 notification."""
+    device = _device()
+    device.process_message(_status(MessageType.notify1))
+    with patch.object(device, "build_send") as send:
+        with pytest.raises(ValueError, match="recent status"):
+            device.set_attribute("freezing_ice_machine_power", True)
+        send.assert_not_called()
+
+
+def test_stale_notification_does_not_revert_ice_switch() -> None:
+    """Wait for a query before accepting an old power bit after a set."""
+    device = _device()
+    device.process_message(_status())
+    with patch.object(device, "build_send"):
+        device.set_attribute("freezing_ice_machine_power", True)
+    device.process_message(_status(MessageType.set, ice_power=True))
+    assert device.get_attribute("freezing_ice_machine_power") is True
+
+    changes = device.process_message(_status(MessageType.notify1))
+    assert "freezing_ice_machine_power" not in changes
+    assert device.get_attribute("freezing_ice_machine_power") is True
+
+    device.process_message(_status(ice_power=True))
+    assert device._pending_ice_power is None
+    assert device.get_attribute("freezing_ice_machine_power") is True
+
+
+def test_query_can_reject_unapplied_ice_command() -> None:
+    """A later status query wins when the appliance did not apply a command."""
+    device = _device()
+    device.process_message(_status())
+    with patch.object(device, "build_send"):
+        device.set_attribute("freezing_ice_machine_power", True)
+    device.process_message(_status(MessageType.set, ice_power=True))
+    changes = device.process_message(_status())
+    assert changes["freezing_ice_machine_power"] is False
+    assert device._pending_ice_power is None
 
 
 def test_requires_recent_status() -> None:

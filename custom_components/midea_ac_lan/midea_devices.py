@@ -6082,7 +6082,7 @@ MIDEA_DEVICES: dict[int, dict[str, dict[str, Any] | str]] = {
             "iced_mode": {
                 "type": Platform.BINARY_SENSOR,
                 "translation_key": "ca_iced_mode",
-                "name": "Ice Making",
+                "name": "Ice Making Mode Flag",
                 "icon": "mdi:snowflake",
                 "models": ["310A1394"],
                 "subtypes": [56],
@@ -6091,7 +6091,7 @@ MIDEA_DEVICES: dict[int, dict[str, dict[str, Any] | str]] = {
             "ice_mouth_power": {
                 "type": Platform.BINARY_SENSOR,
                 "translation_key": "ca_ice_mouth_power",
-                "name": "Ice Dispenser Status",
+                "name": "Ice Dispenser Power Flag",
                 "icon": "mdi:cup",
                 "models": ["310A1394"],
                 "subtypes": [56],

@@ -64,10 +64,10 @@
   "entity": {
     "binary_sensor": {
       "ca_iced_mode": {
-        "name": "正在制冰"
+        "name": "制冰模式位"
       },
       "ca_ice_mouth_power": {
-        "name": "出冰口状态"
+        "name": "出冰口电源位"
       },
       "ca_ice_water_status_flag": {
         "name": "制冰水盒状态位"

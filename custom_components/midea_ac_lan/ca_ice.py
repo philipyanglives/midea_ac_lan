@@ -16,6 +16,7 @@ from midealan.message import ListTypes, MessageQuestCustom, MessageType
 MODEL = "310A1394"
 SUBTYPE = 56
 MAX_STATUS_AGE = 120
+PENDING_ICE_POWER_AGE = 45
 CONTROL_BODY_LENGTH = 40
 MIN_GENERAL_STATUS_LENGTH = 25
 ICE_POWER_OFFSET = 8
@@ -111,6 +112,8 @@ class MideaCAIceDevice(ca.MideaCADevice):
         super().__init__(customize=customize, **kwargs)
         self._last_general_body: bytearray | None = None
         self._last_general_status_at: float | None = None
+        self._pending_ice_power: bool | None = None
+        self._pending_ice_power_until: float | None = None
         if self.model == MODEL and self.subtype == SUBTYPE:
             for key in STATUS_FLAGS:
                 self._attributes[key] = None
@@ -126,13 +129,38 @@ class MideaCAIceDevice(ca.MideaCADevice):
         """
         if self.model != MODEL or self.subtype != SUBTYPE:
             return super().process_message(msg)
+        previous_ice_power = self._attributes.get("freezing_ice_machine_power")
         new_status = super().process_message(msg)
         message = MessageCAResponse(msg)
         if hasattr(message, "freezing_ice_machine_power"):
-            self._last_general_body = bytearray(message.body)
-            self._last_general_status_at = time.monotonic()
+            # An X02 notification carries ice flags but cannot seed the X00
+            # control body. Keep the latest control-ready X00 status.
+            if (
+                len(message.body) >= MIN_GENERAL_STATUS_LENGTH
+                and message.body[0] == ListTypes.X00
+            ):
+                self._last_general_body = bytearray(message.body)
+                self._last_general_status_at = time.monotonic()
+            if self._pending_ice_power is not None and (
+                message.message_type == MessageType.query
+                or self._pending_ice_power_until is None
+                or time.monotonic() >= self._pending_ice_power_until
+            ):
+                # A fresh query confirms or rejects the command. Notifications
+                # immediately following a set can still contain the old bit.
+                self._pending_ice_power = None
+                self._pending_ice_power_until = None
             for key in STATUS_FLAGS:
                 value = bool(getattr(message, key))
+                if (
+                    key == "freezing_ice_machine_power"
+                    and self._pending_ice_power is not None
+                    and value != self._pending_ice_power
+                    and message.message_type in (MessageType.set, MessageType.notify1)
+                ):
+                    self._attributes[key] = previous_ice_power
+                    new_status.pop(key, None)
+                    continue
                 self._attributes[key] = value
                 new_status[key] = value
         return new_status
@@ -163,14 +191,21 @@ class MideaCAIceDevice(ca.MideaCADevice):
         ):
             raise ValueError("Cannot set ice maker power without recent status")
         body = build_ice_power_body(self._last_general_body, value)
-        self.build_send(
-            MessageQuestCustom(
-                DeviceType.CA,
-                self._message_protocol_version,
-                MessageType.set,
-                body,
-            ),
-        )
+        self._pending_ice_power = value
+        self._pending_ice_power_until = time.monotonic() + PENDING_ICE_POWER_AGE
+        try:
+            self.build_send(
+                MessageQuestCustom(
+                    DeviceType.CA,
+                    self._message_protocol_version,
+                    MessageType.set,
+                    body,
+                ),
+            )
+        except Exception:
+            self._pending_ice_power = None
+            self._pending_ice_power_until = None
+            raise
         return None
 
 
