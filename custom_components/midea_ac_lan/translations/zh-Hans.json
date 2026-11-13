@@ -1091,6 +1091,14 @@
       }
     },
     "select": {
+      "ca_ice_making_mode": {
+        "name": "制冰模式",
+        "state": {
+          "off": "关闭",
+          "normal": "常规制冰",
+          "rapid": "快速制冰"
+        }
+      },
       "cur_quantify": {
         "name": "当前定量预设",
         "state": {

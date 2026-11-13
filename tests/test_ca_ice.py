@@ -3,7 +3,11 @@
 from unittest.mock import patch
 
 import pytest
-from midea_ac_lan.ca_ice import MideaCAIceDevice, build_ice_power_body
+from midea_ac_lan.ca_ice import (
+    MideaCAIceDevice,
+    build_ice_mode_body,
+    build_ice_power_body,
+)
 from midea_ac_lan.const import supports_device
 from midea_ac_lan.midea_devices import MIDEA_DEVICES
 from midealan.const import ProtocolVersion
@@ -35,9 +39,10 @@ def _device(model: str = "310A1394") -> MideaCAIceDevice:
 def _status(
     message_type: MessageType = MessageType.query,
     ice_power: bool = False,
+    rapid: bool = False,
 ) -> bytes:
     """Make a general CA status with ice and unrelated control bits set."""
-    body = bytearray(32)
+    body = bytearray(78)
     body[0] = 2 if message_type == MessageType.notify1 else 0
     body[1] = 0x9C
     body[2] = 0x35
@@ -51,6 +56,7 @@ def _status(
     body[18] = 90
     body[19] = 100
     body[20] = 120
+    body[44] = 0x20 if rapid else 0
     header = bytearray([0xAA] + [0] * 7 + [ProtocolVersion.V1, message_type])
     return bytes(header + body + bytearray([0]))
 
@@ -71,6 +77,44 @@ def test_status_bits_are_boolean() -> None:
     assert changes["energy_saving_mode"] is True
     assert changes["holiday_mode"] is True
     assert changes["acme_freezing_mode"] is True
+    assert changes["ice_making_mode"] == "off"
+
+
+def test_ice_mode_is_read_from_extended_status() -> None:
+    """Power and quick ice bit together determine the displayed mode."""
+    device = _device()
+    assert (
+        device.process_message(_status(ice_power=True))["ice_making_mode"] == "normal"
+    )
+    assert device.process_message(_status(ice_power=True, rapid=True))[
+        "ice_making_mode"
+    ] == "rapid"
+
+
+def test_ice_mode_control_sets_power_and_quick_bit() -> None:
+    """Each option changes only the ice power and quick ice control bits."""
+    device = _device()
+    device.process_message(_status(ice_power=True))
+    for mode, expected_power, expected_quick in (
+        ("off", 0, 0),
+        ("normal", 0x80, 0),
+        ("rapid", 0x80, 0x20),
+    ):
+        with patch.object(device, "build_send") as send:
+            device.set_attribute("ice_making_mode", mode)
+        body = send.call_args.args[0].body
+        assert len(body) == 45
+        assert body[8] & 0x80 == expected_power
+        assert body[44] & 0x20 == expected_quick
+        assert body[1] == EXPECTED_MODE
+
+
+def test_ice_mode_rejects_short_status_and_unknown_option() -> None:
+    """Do not send an extended command without a complete status."""
+    with pytest.raises(ValueError, match="extended general status"):
+        build_ice_mode_body(bytearray(40), "rapid")
+    with pytest.raises(ValueError, match="Unsupported ice making mode"):
+        build_ice_mode_body(bytearray(78), "other")
 
 
 def test_control_changes_only_power_bit() -> None:
@@ -170,6 +214,7 @@ def test_other_model_keeps_upstream_behavior() -> None:
     device = _device(model="other")
     assert "iced_mode" not in device.attributes
     assert "storage_iceHome_door_state" not in device.attributes
+    assert "ice_making_mode" not in device.attributes
     with patch.object(device, "build_send") as send:
         device.set_attribute("freezing_ice_machine_power", True)
         send.assert_not_called()
@@ -179,6 +224,7 @@ def test_new_status_entities_are_limited_to_310a1394() -> None:
     """Unknown CA models cannot create the extra flag sensors."""
     entities = MIDEA_DEVICES[0xCA]["entities"]
     for key in (
+        "ice_making_mode",
         "storage_iceHome_door_state",
         "freezing_motor_deicing_status",
         "freezing_motor_reset_status",

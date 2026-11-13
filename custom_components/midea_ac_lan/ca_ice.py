@@ -18,9 +18,13 @@ SUBTYPE = 56
 MAX_STATUS_AGE = 120
 PENDING_ICE_POWER_AGE = 45
 CONTROL_BODY_LENGTH = 40
+MODE_CONTROL_BODY_LENGTH = 45
 MIN_GENERAL_STATUS_LENGTH = 25
 ICE_POWER_OFFSET = 8
 ICE_POWER_MASK = 0x80
+QUICK_ICE_OFFSET = 44
+QUICK_ICE_MASK = 0x20
+ICE_MODES = ("off", "normal", "rapid")
 STATUS_FLAGS = (
     "iced_mode",
     "freezing_ice_machine_power",
@@ -66,6 +70,7 @@ CONTROL_STATUS_MASKS = {
     33: 0x81,
     38: 0x01,
 }
+MODE_STATUS_MASKS = {40: 0x3D, 41: 0x08, 42: 0x3F, 43: 0xFF, 44: 0xF8}
 
 
 def build_ice_power_body(status_body: bytearray, power: bool) -> bytearray:
@@ -99,6 +104,26 @@ def build_ice_power_body(status_body: bytearray, power: bool) -> bytearray:
     return body
 
 
+def build_ice_mode_body(status_body: bytearray, mode: str) -> bytearray:
+    """Build the extended CA control body for off, normal, or rapid ice."""
+    if mode not in ICE_MODES:
+        raise ValueError(f"Unsupported ice making mode: {mode}")
+    if len(status_body) < MODE_CONTROL_BODY_LENGTH or status_body[0] != ListTypes.X00:
+        raise ValueError(
+            "A CA extended general status is required before ice mode control"
+        )
+    body = build_ice_power_body(status_body, mode != "off")
+    body.extend(bytearray(MODE_CONTROL_BODY_LENGTH - len(body)))
+    for offset, mask in MODE_STATUS_MASKS.items():
+        body[offset] = status_body[offset] & mask
+    body[QUICK_ICE_OFFSET] = (
+        body[QUICK_ICE_OFFSET] | QUICK_ICE_MASK
+        if mode == "rapid"
+        else body[QUICK_ICE_OFFSET] & ~QUICK_ICE_MASK
+    )
+    return body
+
+
 class MideaCAIceDevice(ca.MideaCADevice):
     """Add ice status and guarded power control to one refrigerator model."""
 
@@ -114,9 +139,12 @@ class MideaCAIceDevice(ca.MideaCADevice):
         self._last_general_status_at: float | None = None
         self._pending_ice_power: bool | None = None
         self._pending_ice_power_until: float | None = None
+        self._pending_ice_mode: str | None = None
+        self._pending_ice_mode_until: float | None = None
         if self.model == MODEL and self.subtype == SUBTYPE:
             for key in STATUS_FLAGS:
                 self._attributes[key] = None
+            self._attributes["ice_making_mode"] = None
 
     def process_message(self, msg: bytes) -> dict[str, Any]:
         """Normalize the parser's ice bit masks to booleans.
@@ -163,6 +191,31 @@ class MideaCAIceDevice(ca.MideaCADevice):
                     continue
                 self._attributes[key] = value
                 new_status[key] = value
+            if (
+                message.message_type in (MessageType.query, MessageType.set)
+                and len(message.body) >= MODE_CONTROL_BODY_LENGTH
+                and message.body[0] == ListTypes.X00
+            ):
+                mode = (
+                    "off"
+                    if not bool(message.body[ICE_POWER_OFFSET] & ICE_POWER_MASK)
+                    else (
+                        "rapid"
+                        if message.body[QUICK_ICE_OFFSET] & QUICK_ICE_MASK
+                        else "normal"
+                    )
+                )
+                if self._pending_ice_mode is not None:
+                    if message.message_type == MessageType.query or (
+                        self._pending_ice_mode_until is not None
+                        and time.monotonic() >= self._pending_ice_mode_until
+                    ):
+                        self._pending_ice_mode = None
+                        self._pending_ice_mode_until = None
+                    elif mode != self._pending_ice_mode:
+                        return new_status
+                self._attributes["ice_making_mode"] = mode
+                new_status["ice_making_mode"] = mode
         return new_status
 
     def set_attribute(self, attr: str, value: bool | float | str) -> None:
@@ -176,13 +229,11 @@ class MideaCAIceDevice(ca.MideaCADevice):
             If no recent complete refrigerator status is available.
 
         """
-        if (
-            self.model != MODEL
-            or self.subtype != SUBTYPE
-            or attr != "freezing_ice_machine_power"
+        if self.model != MODEL or self.subtype != SUBTYPE or attr not in (
+            "freezing_ice_machine_power", "ice_making_mode"
         ):
             return super().set_attribute(attr, value)
-        if not isinstance(value, bool):
+        if attr == "freezing_ice_machine_power" and not isinstance(value, bool):
             raise TypeError("Ice maker power must be a boolean")
         if (
             self._last_general_body is None
@@ -190,8 +241,16 @@ class MideaCAIceDevice(ca.MideaCADevice):
             or time.monotonic() - self._last_general_status_at > MAX_STATUS_AGE
         ):
             raise ValueError("Cannot set ice maker power without recent status")
-        body = build_ice_power_body(self._last_general_body, value)
-        self._pending_ice_power = value
+        if attr == "ice_making_mode":
+            if not isinstance(value, str):
+                raise TypeError("Ice making mode must be a string")
+            body = build_ice_mode_body(self._last_general_body, value)
+            self._pending_ice_mode = value
+            self._pending_ice_mode_until = time.monotonic() + PENDING_ICE_POWER_AGE
+            self._pending_ice_power = value != "off"
+        else:
+            body = build_ice_power_body(self._last_general_body, value)
+            self._pending_ice_power = value
         self._pending_ice_power_until = time.monotonic() + PENDING_ICE_POWER_AGE
         try:
             self.build_send(
@@ -205,6 +264,8 @@ class MideaCAIceDevice(ca.MideaCADevice):
         except Exception:
             self._pending_ice_power = None
             self._pending_ice_power_until = None
+            self._pending_ice_mode = None
+            self._pending_ice_mode_until = None
             raise
         return None
 

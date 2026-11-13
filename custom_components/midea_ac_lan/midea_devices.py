@@ -6079,6 +6079,16 @@ MIDEA_DEVICES: dict[int, dict[str, dict[str, Any] | str]] = {
     0xCA: {
         "name": "Refrigerator",
         "entities": {
+            "ice_making_mode": {
+                "type": Platform.SELECT,
+                "translation_key": "ca_ice_making_mode",
+                "name": "Ice Making Mode",
+                "icon": "mdi:ice-pop",
+                "options": ["off", "normal", "rapid"],
+                "models": ["310A1394"],
+                "subtypes": [56],
+                "default": True,
+            },
             "iced_mode": {
                 "type": Platform.BINARY_SENSOR,
                 "translation_key": "ca_iced_mode",

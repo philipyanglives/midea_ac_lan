@@ -1091,6 +1091,14 @@
       }
     },
     "select": {
+      "ca_ice_making_mode": {
+        "name": "Ice Making Mode",
+        "state": {
+          "off": "Off",
+          "normal": "Normal Ice Making",
+          "rapid": "Rapid Ice Making"
+        }
+      },
       "cur_quantify": {
         "name": "Current Quantity Preset",
         "state": {
