@@ -3,6 +3,8 @@
 from unittest.mock import patch
 
 import pytest
+from homeassistant.components.sensor import SensorDeviceClass
+from homeassistant.const import Platform
 from midea_ac_lan.ca_ice import (
     MideaCAIceDevice,
     build_ice_mode_body,
@@ -266,6 +268,14 @@ def test_new_status_entities_are_limited_to_310a1394() -> None:
         assert supports_device("310A1394", 56, entities[key])
         assert not supports_device("other", 56, entities[key])
         assert not supports_device("310A1394", 21, entities[key])
+
+
+def test_ice_water_shortage_is_a_translated_enum_sensor() -> None:
+    """Map the two shortage bit values to human-readable sensor states."""
+    entity = MIDEA_DEVICES[0xCA]["entities"]["freezer_icemaker_water_shortage"]
+    assert entity["type"] == Platform.SENSOR
+    assert entity["device_class"] == SensorDeviceClass.ENUM
+    assert entity["options"] == {True: "abnormal", False: "normal"}
 
 
 def test_short_status_is_rejected() -> None:

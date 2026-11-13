@@ -72,9 +72,6 @@
       "ca_ice_water_status_flag": {
         "name": "制冰水状态原始位"
       },
-      "ca_ice_water_shortage": {
-        "name": "制冰机缺水"
-      },
       "ca_ice_bin_status_flag": {
         "name": "冰盒状态位"
       },
@@ -1473,6 +1470,13 @@
       }
     },
     "sensor": {
+      "ca_ice_water_shortage": {
+        "name": "制冰机缺水",
+        "state": {
+          "abnormal": "异常",
+          "normal": "正常"
+        }
+      },
       "db_running_status": {
         "name": "洗衣机状态"
       },
